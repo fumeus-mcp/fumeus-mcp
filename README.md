@@ -4,6 +4,8 @@ Fumeus is a family of Python tools for smoke-term analysis. Smoke terms are word
 
 This repository includes the original Fumeus Python functions plus an MCP server wrapper for use from MCP-capable clients.
 
+See the [sample conversation](samples/Sample%20conversation.pdf) for an example of usage.
+
 ## What It Does
 
 - `generate_smoke_terms`: generate ranked n-gram smoke terms from a labeled CSV dataset.
