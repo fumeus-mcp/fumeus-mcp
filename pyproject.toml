@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fumeus-mcp"
+version = "0.1.0"
+description = "MCP server wrapper for the Fumeus smoke-term analysis tools."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4>=4.12",
+    "chardet>=5.0",
+    "mcp[cli]>=1.0",
+    "nltk>=3.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+fumeus-mcp = "fumeus_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fumeus_mcp"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

@@ -17,6 +17,45 @@ def check_extension(fname, extension = ".csv"):
     return root + ending
 
 
+def validate_column_index(index, width, name = "column"):
+    """
+    Converts negative column indexes and verifies the result is within row bounds.
+    """
+
+    if width <= 0:
+        raise ValueError("Cannot select a column from an empty row.")
+
+    resolved = width + index if index < 0 else index
+    if resolved < 0 or resolved >= width:
+        raise IndexError(f"{name} index {index} is out of range for {width} columns.")
+    return resolved
+
+
+def prepare_output_path(fname, extension = ".csv"):
+    """
+    Validates and normalizes an output file path before writing.
+    """
+
+    if not fname:
+        raise ValueError("Output file name must not be empty.")
+    if os.path.isdir(str(fname)):
+        raise IsADirectoryError(f"Output path is a directory: {fname}")
+
+    path = check_extension(str(fname), extension)
+    directory = os.path.dirname(os.path.abspath(path))
+
+    if not os.path.isdir(directory):
+        raise FileNotFoundError(f"Output directory does not exist: {directory}")
+    if not os.access(directory, os.W_OK):
+        raise PermissionError(f"Output directory is not writable: {directory}")
+    if os.path.isdir(path):
+        raise IsADirectoryError(f"Output path is a directory: {path}")
+    if os.path.exists(path) and not os.access(path, os.W_OK):
+        raise PermissionError(f"Output file is not writable: {path}")
+
+    return path
+
+
 def clean_documents(x, stop_words = []):
     """
     Removes HTML, stopwords, and words of fewer than three characters from text.

@@ -1,6 +1,8 @@
 import csv, json, math, nltk
 from fum_utils import *
 
+VALID_IR_MODES = {"CC", "DRC", "RSV", "RCV"}
+
 
 def build_ngram_matrix(documents, length, y):
     """
@@ -37,6 +39,10 @@ def ir_score(ngrams, ngram_matrix, y, mode = "CC"):
 
     Returns a dictionary of {ngram: score}.
     """
+
+    mode = mode.upper()
+    if mode not in VALID_IR_MODES:
+        raise ValueError("mode must be one of CC, DRC, RSV, or RCV")
     
     # Initialize IR score container
     ir_scores = {ngram: {"a": 0, "b": 0, "c": 0, "d": 0} for ngram in ngrams}
@@ -94,63 +100,32 @@ def csv_to_list(dataset_fname, header = False, y_column = -1):
     Returns x (2-D list), y (list).
     """
 
-    # Initialize data containers and check extension of provided file name
     x = []
     y = []
-    bad_data = {}
     dataset_fname = check_extension(dataset_fname)
 
     encoding = guess_encoding(dataset_fname)
     with open(dataset_fname, "r", encoding = encoding) as file:
         reader = csv.reader(file, delimiter = ",")
-        for i, line in enumerate(reader):
-            row = []
+        rows = list(reader)
 
-            # If negative index is used, find equivalent forward-looking index
-            if i == 0 and y_column < 0:
-                y_column = len(line) + y_column
+    if not rows:
+        raise ValueError("Dataset is empty.")
 
-            # Check for header row
-            if i > 0 or not header:
-                for j, item in enumerate(line):
+    width = len(rows[0])
+    y_column = validate_column_index(y_column, width, "y_column")
+    data_rows = rows[1:] if header else rows
 
-                    # Collect y values
-                    if j == y_column:
-                        try:
-                            y.append(float(item))
-                        except ValueError:
-                            y.append(0)
-                        except:
-                            pass
-                        continue
+    for row_number, line in enumerate(data_rows, start = 2 if header else 1):
+        if len(line) != width:
+            raise ValueError(f"Row {row_number} has {len(line)} columns; expected {width}.")
 
-                    # Treat empty cells as zero
-                    if len(item) == 0:
-                        row.append(0)
-                        continue
+        try:
+            y.append(float(line[y_column]))
+        except ValueError as exc:
+            raise ValueError(f"Row {row_number} has a non-numeric y value: {line[y_column]!r}") from exc
 
-                    # Attempt to convert each element to float
-                    # Track fields that cannot be converted
-                    try:
-                        row.append(float(item))
-                    except ValueError:
-                        if j not in bad_data:
-                            bad_data[j] = [item]
-                        else:
-                            bad_data[j].append(item)
-                    except:
-                        pass
-
-                x.append(row)
-
-    # Check that bad data was present and handle
-    if len(bad_data) > 0:
-        bad_field_ids = sorted(tuple(bad_data.keys()))
-        if len(x) == 0:
-            x = [[] * len(bad_data[bad_field_ids[0]])]
-        for field_id in bad_field_ids:
-            for i, item in enumerate(bad_data[field_id]):
-                x[i].append(item)
+        x.append(tuple(0 if item == "" else item for j, item in enumerate(line) if j != y_column))
 
     return x, y
 
@@ -202,26 +177,38 @@ def main(dataset_fname, header = False, x_column = 0, y_column = -1, ngram_lengt
      >> Default: "csv".
     """
 
-    # Load data from a CSV file
-    # x is the textual data
-    # y is the dependent variable, 1 or 0
+    mode = mode.upper()
+    if mode not in VALID_IR_MODES:
+        raise ValueError("mode must be one of CC, DRC, RSV, or RCV")
+
     x, y = csv_to_list(dataset_fname, header, y_column)
+    total_columns = len(x[0]) + 1 if x else 0
+    resolved_y_column = validate_column_index(y_column, total_columns, "y_column")
+    resolved_x_column = validate_column_index(x_column, total_columns, "x_column")
+    if resolved_x_column == resolved_y_column:
+        raise ValueError("x_column and y_column must refer to different columns.")
+
+    adjusted_x_column = resolved_x_column
+    if resolved_x_column > resolved_y_column:
+        adjusted_x_column -= 1
 
     # Clean text data
-    x_clean = clean_documents([document[x_column] for document in x])
+    x_clean = clean_documents([document[adjusted_x_column] for document in x])
     
     # Generate n-grams and build matrices for each document
     ngrams = get_unique_ngrams(x_clean, ngram_length)
     ngram_matrix = build_ngram_matrix(x_clean, ngram_length, y)
 
     # Run scoring algorithm
-    ngram_scores = ir_score(ngrams, ngram_matrix, y, mode.upper())
+    ngram_scores = ir_score(ngrams, ngram_matrix, y, mode)
 
     # Output results to CSV or JSON files
     if format == "csv":
         terms_to_csv(ngram_scores, output_fname, top_n)
     elif format == "json":
         terms_to_json(ngram_scores, output_fname, top_n)
+    else:
+        raise ValueError("format must be either 'csv' or 'json'")
 
 
 def make_terms_table(terms_dict, n = None):
@@ -254,7 +241,7 @@ def terms_to_csv(terms_dict, fname, n = None):
         
     terms_table = make_terms_table(terms_dict, n)
     
-    fname = check_extension(fname)
+    fname = prepare_output_path(fname)
     with open(fname, "w") as file:
         writer = csv.writer(file, lineterminator = "\n")
         for row in terms_table:
@@ -274,7 +261,7 @@ def terms_to_json(terms_dict, fname, n = None):
     terms_table = make_terms_table(terms_dict, n)
     terms_table = [{"term": row[0], "score": row[1]} for row in terms_table]
 
-    fname = check_extension(fname, ".json")
+    fname = prepare_output_path(fname, ".json")
 
     with open(fname, "w") as file:
         file.write(json.dumps(terms_table, indent = 4))

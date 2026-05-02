@@ -69,6 +69,8 @@ def main(dataset_fname, terms_fname, output_fname, header = False, header2 = Fal
         scores_to_csv(x, x_scored, output_fname)
     elif format == "json":
         scores_to_json(x, x_scored, output_fname)
+    else:
+        raise ValueError("format must be either 'csv' or 'json'")
 
 
 def read_terms_csv(fname, header = False):
@@ -104,7 +106,7 @@ def scores_to_csv(x, x_scored, fname):
     fname - the file name for the output file.
     """
     
-    fname = check_extension(fname)
+    fname = prepare_output_path(fname)
     
     table = []
     for i, text in enumerate(x):
@@ -127,7 +129,7 @@ def scores_to_json(x, x_scored, fname):
     fname - the file name for the output file.
     """
     
-    fname = check_extension(fname, ".json")
+    fname = prepare_output_path(fname, ".json")
     
     table = []
     for i, text in enumerate(x):
